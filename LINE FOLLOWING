@@ -1,0 +1,224 @@
+// Define states (using an enum for clarity is good practice)
+enum RobotState {
+  FOLLOW_LINE,
+  OBSTACLE_DETECTED, // Could be a temporary state to trigger avoidance
+  AVOIDING_OBSTACLE,
+  SEARCHING_FOR_LINE
+};
+
+RobotState currentState = FOLLOW_LINE; // Start in line-following mode
+
+// Ultrasonic Sensor Pins (adjust these)
+const int ULTRASONIC_TRIG_PIN = 11;
+const int ULTRASONIC_ECHO_PIN = 12;
+
+// Color Sensor (if using, you'll need a library like Adafruit_TCS34725 or similar)
+// For simplicity, we'll focus on Ultrasonic for detection, and assume color is for classification later.
+
+// Obstacle detection threshold (in cm) - adjust based on testing
+const int OBSTACLE_DISTANCE_THRESHOLD = 20; // Example: 20 cm
+
+// Timing variables for avoidance maneuver (will need tuning)
+unsigned long maneuverStartTime = 0;
+const unsigned long PIVOT_DURATION = 500; // milliseconds for a 90-degree pivot
+const unsigned long FORWARD_DURATION_SHORT = 700; // milliseconds to move slightly past obstacle
+const unsigned long FORWARD_DURATION_LONG = 1500; // milliseconds to move further around obstacle
+
+// Motor control pins (from previous example)
+const int MOTOR_LEFT_IN1 = 4;
+const int MOTOR_LEFT_IN2 = 5;
+const int MOTOR_LEFT_ENA = 9;
+const int MOTOR_RIGHT_IN1 = 6;
+const int MOTOR_RIGHT_IN2 = 7;
+const int MOTOR_RIGHT_ENB = 10;
+const int BASE_SPEED = 150;
+
+// IR Sensor pins (from previous example)
+const int SENSOR_LEFT_PIN = 2;
+const int SENSOR_RIGHT_PIN = 3;
+const int BLACK_LINE = LOW; // Assuming LOW for black, HIGH for white
+const int WHITE_FLOOR = HIGH;
+
+
+void setup() {
+  // ... (IR sensor and motor pin setup as before) ...
+
+  // Ultrasonic sensor setup
+  pinMode(ULTRASONIC_TRIG_PIN, OUTPUT);
+  pinMode(ULTRASONIC_ECHO_PIN, INPUT);
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Always check for obstacles first, as it's the highest priority
+  if (checkObstacle()) {
+    if (currentState != AVOIDING_OBSTACLE) { // Only transition if not already avoiding
+      currentState = AVOIDING_OBSTACLE;
+      maneuverStartTime = millis(); // Start timer for avoidance steps
+      stopMotors(); // Stop immediately upon detection
+      Serial.println("Obstacle Detected! Starting Avoidance.");
+    }
+  }
+
+  // State Machine Logic
+  switch (currentState) {
+    case FOLLOW_LINE:
+      handleFollowLine();
+      break;
+
+    case AVOIDING_OBSTACLE:
+      handleAvoidObstacle();
+      break;
+
+    case SEARCHING_FOR_LINE:
+      handleSearchForLine();
+      break;
+  }
+}
+
+// --- Sensor Reading Functions ---
+
+long readUltrasonicDistance() {
+  // Clears the trigPin
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(ULTRASONIC_TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
+  // Calculating the distance
+  long distanceCm = duration * 0.034 / 2; // Speed of sound is 0.034 cm/microsecond
+  return distanceCm;
+}
+
+bool checkObstacle() {
+  long distance = readUltrasonicDistance();
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  return (distance > 0 && distance < OBSTACLE_DISTANCE_THRESHOLD); // distance > 0 to avoid false positives at 0
+}
+
+// --- State Handler Functions ---
+
+void handleFollowLine() {
+  int leftSensorState = digitalRead(SENSOR_LEFT_PIN);
+  int rightSensorState = digitalRead(SENSOR_RIGHT_PIN);
+
+  // Your existing line-following logic
+  if (leftSensorState == WHITE_FLOOR && rightSensorState == WHITE_FLOOR) {
+    moveForward();
+  } else if (leftSensorState == BLACK_LINE && rightSensorState == WHITE_FLOOR) {
+    pivotTurnRight(); // Line shifted left, turn right
+  } else if (leftSensorState == WHITE_FLOOR && rightSensorState == BLACK_LINE) {
+    pivotTurnLeft();  // Line shifted right, turn left
+  } else if (leftSensorState == BLACK_LINE && rightSensorState == BLACK_LINE) {
+    moveForward(); // Both on black, continue forward (or implement a more complex search)
+  }
+}
+
+void handleAvoidObstacle() {
+  unsigned long currentTime = millis();
+
+  // Step 1: Pivot 90 degrees away from obstacle (e.g., always left)
+  if (currentTime - maneuverStartTime < PIVOT_DURATION) {
+    pivotTurnLeft(BASE_SPEED); // Adjust speed for turning
+  }
+  // Step 2: Move forward to clear the obstacle's width
+  else if (currentTime - maneuverStartTime < PIVOT_DURATION + FORWARD_DURATION_SHORT) {
+    moveForward(BASE_SPEED);
+  }
+  // Step 3: Pivot 90 degrees back towards the original direction
+  else if (currentTime - maneuverStartTime < PIVOT_DURATION + FORWARD_DURATION_SHORT + PIVOT_DURATION) {
+    pivotTurnRight(BASE_SPEED);
+  }
+  // Step 4: Move forward to clear the obstacle's length and get back on track
+  else if (currentTime - maneuverStartTime < PIVOT_DURATION + FORWARD_DURATION_SHORT + PIVOT_DURATION + FORWARD_DURATION_LONG) {
+    moveForward(BASE_SPEED);
+  }
+  // Step 5: Maneuver complete, now search for the line
+  else {
+    stopMotors();
+    currentState = SEARCHING_FOR_LINE;
+    maneuverStartTime = millis(); // Reset timer for search phase if needed
+    Serial.println("Avoidance complete. Searching for line.");
+  }
+}
+
+void handleSearchForLine() {
+  int leftSensorState = digitalRead(SENSOR_LEFT_PIN);
+  int rightSensorState = digitalRead(SENSOR_RIGHT_PIN);
+
+  // If either sensor sees the line, we've found it!
+  if (leftSensorState == BLACK_LINE || rightSensorState == BLACK_LINE) {
+    currentState = FOLLOW_LINE;
+    Serial.println("Line reacquired! Resuming line following.");
+    return; // Exit early to immediately start following
+  }
+
+  // If not found, perform a sweeping search pattern
+  // Example: Move slightly forward, then pivot left, then pivot right, repeat
+  unsigned long currentTime = millis();
+  unsigned long searchPhaseDuration = 1000; // Duration for one search sweep cycle (e.g., 1 second)
+
+  if ((currentTime - maneuverStartTime) % searchPhaseDuration < searchPhaseDuration / 4) {
+    moveForward(BASE_SPEED / 2); // Move slowly forward
+  } else if ((currentTime - maneuverStartTime) % searchPhaseDuration < searchPhaseDuration / 2) {
+    pivotTurnLeft(BASE_SPEED / 2); // Small pivot left
+  } else if ((currentTime - maneuverStartTime) % searchPhaseDuration < (searchPhaseDuration * 3) / 4) {
+    pivotTurnRight(BASE_SPEED / 2); // Small pivot right
+  } else {
+    moveForward(BASE_SPEED / 2); // Continue forward slightly
+  }
+  // You might want to add a timeout for searching to prevent infinite loops if line is truly lost
+  // For now, it will keep searching until a sensor hits the line.
+}
+
+// --- Motor Control Functions (from previous example, included for completeness) ---
+void stopMotors() {
+  digitalWrite(MOTOR_LEFT_IN1, LOW);
+  digitalWrite(MOTOR_LEFT_IN2, LOW);
+  digitalWrite(MOTOR_RIGHT_IN1, LOW);
+  digitalWrite(MOTOR_RIGHT_IN2, LOW);
+  analogWrite(MOTOR_LEFT_ENA, 0);
+  analogWrite(MOTOR_RIGHT_ENB, 0);
+}
+
+void moveForward(int speed = BASE_SPEED) {
+  digitalWrite(MOTOR_LEFT_IN1, HIGH);
+  digitalWrite(MOTOR_LEFT_IN2, LOW);
+  digitalWrite(MOTOR_RIGHT_IN1, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN2, LOW);
+  analogWrite(MOTOR_LEFT_ENA, speed);
+  analogWrite(MOTOR_RIGHT_ENB, speed);
+}
+
+void moveBackward(int speed = BASE_SPEED) {
+  digitalWrite(MOTOR_LEFT_IN1, LOW);
+  digitalWrite(MOTOR_LEFT_IN2, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN1, LOW);
+  digitalWrite(MOTOR_RIGHT_IN2, HIGH);
+  analogWrite(MOTOR_LEFT_ENA, speed);
+  analogWrite(MOTOR_RIGHT_ENB, speed);
+}
+
+void pivotTurnLeft(int speed = BASE_SPEED) {
+  digitalWrite(MOTOR_LEFT_IN1, LOW);
+  digitalWrite(MOTOR_LEFT_IN2, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN1, HIGH);
+  digitalWrite(MOTOR_RIGHT_IN2, LOW);
+  analogWrite(MOTOR_LEFT_ENA, speed);
+  analogWrite(MOTOR_RIGHT_ENB, speed);
+}
+
+void pivotTurnRight(int speed = BASE_SPEED) {
+  digitalWrite(MOTOR_LEFT_IN1, HIGH);
+  digitalWrite(MOTOR_LEFT_IN2, LOW);
+  digitalWrite(MOTOR_RIGHT_IN1, LOW);
+  digitalWrite(MOTOR_RIGHT_IN2, HIGH);
+  analogWrite(MOTOR_LEFT_ENA, speed);
+  analogWrite(MOTOR_RIGHT_ENB, speed);
+}
