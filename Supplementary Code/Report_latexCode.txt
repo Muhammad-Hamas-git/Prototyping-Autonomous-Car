@@ -1,0 +1,468 @@
+\documentclass[12pt, a4paper]{article}
+
+% --- Required Packages ---
+\usepackage[utf8]{inputenc} % For UTF-8 input
+\usepackage{amsmath}        % For mathematical equations
+\usepackage{graphicx}       % For including images
+\usepackage{float}          % For precise figure placement (e.g., [H])
+\usepackage{hyperref}       % For hyperlinks in references and URLs
+\usepackage{enumitem}       % For custom list formatting (if needed, but standard is fine)
+\usepackage[margin=1in]{geometry} % For setting page margins
+\usepackage{fancyhdr}       % For headers and footers
+\usepackage{listings}       % For including code snippets
+\usepackage{xcolor}         % For coloring in listings (optional, but good practice)
+
+\usepackage{booktabs}       % For professional-looking tables
+
+% --- Listing Style for Arduino Code ---
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codesilver}{rgb}{0.9,0.9,0.9}
+\definecolor{codeblue}{rgb}{0.25,0.5,0.5}
+\definecolor{codeorange}{rgb}{0.8,0.4,0.0}
+
+\lstset{
+    backgroundcolor=\color{codesilver},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codeorange},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    language=C++, % Specify C++ for Arduino code
+    morekeywords={setup, loop, pinMode, digitalWrite, analogWrite, delay, delayMicroseconds, pulseIn, attach, write, Servo, const, int, float, long, define}, % Add Arduino specific keywords
+    identifierstyle=\color{black},
+    emph={motorSpeed, backwardsScale, angleSnapSpeed, obstacleThreshold, SCAN_CENTER, SCAN_RIGHT, SCAN_LEFT, ENA, IN1, IN2, ENB, IN3, IN4, IR_LEFT, IR_RIGHT, TRIG_PIN, ECHO_PIN, SERVO_PIN}, % Emphasize variables
+    emphstyle=\color{purple}\bfseries,
+    literate=%
+    *{}{{\textasciigrave}}1
+     {^}{{\textasciicircum}}1
+     {~}{{\textasciitilde}}1
+}
+
+% --- Header and Footer Setup ---
+\pagestyle{fancy}
+\fancyhf{} % Clear all header and footer fields
+\fancyhead[L]{AUTONOMOUS LINE-FOLLOWING CAR} % Left header
+\fancyfoot[C]{\thepage} % Center footer with page number
+\renewcommand{\headrulewidth}{0.4pt} % Line under header
+\renewcommand{\footrulewidth}{0.4pt} % Line over footer
+
+% --- Document Information ---
+\title{AUTONOMOUS LINE-FOLLOWING CAR}
+\author{
+    MIR SHARJIL HASAN \\
+    Electronic Engineering \\
+    Hamm-Lippstadt \\
+    Lippstadt, Germany \\
+    \and
+    TALHA KHAN \\
+    Electronic Engineering \\
+    Hochschule Hamm-Lippstadt \\
+    Lippstadt, Germany
+    \and
+    MUHAMMAD HAMAS \\
+    Electronic Engineering \\
+    Hochschule Hamm-Lippstadt \\
+    Lippstadt, Germany
+}
+\date{June 2025} % Or \date{\today}
+
+\begin{document}
+
+\maketitle
+
+% --- Abstract ---
+\begin{abstract}
+This project undertakes the design and development of an intelligent line follower vehicle that can detect obstacles and respond to them in an intelligent manner. The chassis of the vehicle was designed using SolidWorks and Fusion 360, modelled with laser cut parts and 3D printed components. Line sensors are used for the predefined path, while ultrasonic sensors detect obstacles around the vehicle for dynamic avoidance. Colour sensors enable the detection of the colours of obstacles which then trigger specific behaviours by the vehicle. These different types of sensing give the vehicle smartness in decision-making and adaptability to its environment. Therefore, a robust, reliable, autonomous navigation system able to work in dynamic environments is achieved.
+
+\textbf{Key Topics:} SysML, Line-Following Robot, PLA, Detecting Obstacles, Merging Sensor Data
+\textbf{Index Terms:} SysML, Line-Following Robot, PLA, Obstacle Detection, Sensor Fusion
+\end{abstract}
+
+\clearpage % Start new page after abstract
+
+% --- Introduction ---
+\section{Introduction}
+The goal of this project was to design and build a line-following bot that can not just follow a marked path but also see obstacles and act on their colour. This joins traditional way-following methods with real-time object spotting and smart choice-making. The work shown here uses ideas from embedded systems, sensor joining, and mechanical design to make a real self-driving car. The report is organised as follows: Section \ref{sec:sysml} discusses how SysML was used to model and analyze the system. Section \ref{sec:structural_design} walks through the design and development process. Section \ref{sec:components} outlines the electronic components and explains their roles.
+
+% --- System Analysis with SysML ---
+\section{System Analysis with SysML}
+\label{sec:sysml}
+In order to properly scope and manage the project, we adopted SysML (Systems Modelling Language). This allowed us to maintain support throughout the entire development process---from system requirements definition all the way through design and testing. We captured desired functions of the robot using requirement diagrams, and how interactions between different components happen over time with sequence diagrams. These two artefacts have been critical in making sure all subsystems are both aligned and working cohesively \cite{ref:joyit}.
+
+\subsection{Requirements}
+To guide the design and development of our autonomous vehicle prototype, we used a step-by-step requirement diagram, as shown in Figure \ref{fig:requirements}. The diagram outlines all the significant functional requirements the system must fulfil, which serves to offer clear and consistent division of project objectives. At the top level, the general goal is to design an autonomous vehicle (ID=001) to independently drive a track without any human interaction. This is the overall requirement broken down into three primary functional areas:
+\begin{enumerate}
+    \item \textbf{Track Management (ID=002)}: This requirement blames the vehicle for keeping up with the track and reacting to change, such as curves or sharp turns. It was complemented by a derived requirement, titled Speed Optimisation (ID=006). It asks the vehicle to be able to accelerate or decelerate based on track complexity to make stable and optimal motion \cite{ref:joyit}.
+    \item \textbf{Obstacles Management (ID=003)}: The vehicle should be able to perceive the obstacle ahead and make decisions about it. There are two additional layers in this section:
+    \begin{itemize}
+        \item \textbf{Braking Distance (ID=007)}: The system must begin responding when it perceives an object at least 3 cm in front \cite{ref:joyit}.
+        \item \textbf{Colour Management (ID=005)}: The system must perceive the color of the obstacle---red, green, or blue---and respond differently in turn. Test case ("Test Colour") was used to test this functionality while developing the application \cite{ref:joyit}.
+    \end{itemize}
+    \item \textbf{Direction Management (ID=004)}: This is the turn and manoeuvring criterion while driving on various paths, including parking. Out of this, we drew out a more specific goal:
+    \begin{itemize}
+        \item \textbf{Drive Different Track Routings (ID=008)}: This means that the car must be capable enough to drive along complex paths and park when required. It is also divided into three specific routing capabilities:
+        \begin{itemize}
+            \item Turn 90 Degrees (ID=009)
+            \item Drive in an Oval (ID=010)
+            \item Parking (ID=011)
+        \end{itemize}
+    \end{itemize}
+\end{enumerate}
+Collectively, these specifications guarantee the system is able to navigate lines accurately, deal with obstacles smartly, and accomplish various navigation tasks. The diagram was used as a basis for both design and testing, making it possible to construct the prototype incrementally while verifying all essential behaviours were included \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure1.png} % Placeholder for Figure 1
+    \caption{SysML Requirements Diagram for the Autonomous Vehicle}
+    \label{fig:requirements}
+\end{figure}
+
+\subsection{State Machine Diagram}
+The state machine diagram, depicted in Figure \ref{fig:state_machine}, represents the intricate behavior of the autonomous vehicle, transitioning through various operational states. It begins from the \texttt{Power On} state, moving into \texttt{Initialization} where all sensors and motors are activated, the line sensor is calibrated, and the battery status is checked. Upon successful initialization, the vehicle transitions to the primary \texttt{Line Following} state, continuously tracking the line on the path. If an obstacle is detected within a predefined threshold (15 cm), the system enters the \texttt{Obstacle Detection} state, halting the motors and utilizing sensors to identify the obstacle and its color. Should no clear path be available, the vehicle moves to a \texttt{Stop} state. Conversely, if an alternative path is identified, it transitions to \texttt{Calculate Alternate Path}, where it scans the environment, computes a new route, and reorients itself towards this new path. Once a viable path is established, the vehicle seamlessly resumes its \texttt{Line Following} operation. This detailed state machine ensures robust and adaptive navigation in dynamic environments \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure10.png} % Updated to figure10.jpg
+    \caption{SysML State Machine Diagram of the Autonomous Vehicle}
+    \label{fig:state_machine}
+\end{figure}
+
+\subsection{Activity Diagram}
+The Activity Diagram depicts the behaviour of the autonomous vehicle from a power on state to an avoiding obstacle state. Upon turning on the system the vehicle's behaviour starts with the detection of the line. The vehicle is programmed to detect curves or obstacles. When this occurs, the system determines which direction to turn. If a curve is detected, then the system will activate either the left motor or right motor in reverse to be able to adjust. If the vehicle does not detect a change in the line, it will continue to accelerate moving perpendicularly to the right line while moving forward. While in motion, the system actively checks for obstacle detection. When an object is detected, the vehicle runs the avoid routine and loops back to following the line. The Activity Diagram shows control flow pertinent to decision making and navigation logic \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure3.png} % Placeholder for Figure 3
+    \caption{SysML Activity Diagram of the Autonomous Vehicle}
+    \label{fig:activity_diagram}
+\end{figure}
+
+\subsection{Internal Block Diagram Overview}
+Internal Block Diagram is the physical structure of the autonomous vehicle's subsystems and how they interact. The four main units of the system are Power System, Sensor System, Controller Unit, and Motor System.
+\begin{itemize}
+    \item \textbf{Power System}: The battery supplies power to all the main components via separate PowerPorts, ensuring a continuous power supply to sensors, controller, and motors \cite{ref:joyit}.
+    \item \textbf{Sensor System}: Includes an Ultrasonic Sensor, IR Sensor, and Colour Sensor. These are all powered and send data to the Controller Unit through DataPorts to enable detection of the environment and identification of obstacles \cite{ref:joyit}.
+    \item \textbf{Controller Unit}: Acts as the primary processor. It takes in sensor inputs, processes data, and sends instructions through a Digital Analog Port to the Motor Controller. It is also directly powered from the battery \cite{ref:joyit}.
+    \item \textbf{Motor System}: Comprises Left and Right Motors controlled by a Motor Controller. The controller divides power and executes movement commands based on signals from the Controller Unit \cite{ref:joyit}.
+\end{itemize}
+This modular structure ensures stable communication and control across all components, forming a complete autonomous vehicle system \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure4.png} % Placeholder for Figure 4
+    \caption{SysML Internal Block Diagram of the Autonomous Vehicle}
+    \label{fig:internal_block_diagram}
+\end{figure}
+
+\subsection{Block Definition Diagram (BDD) Overview}
+Figure \ref{fig:bdd} shows a Block Definition Diagram (BDD) that provides post-level structure and decomposition of the autonomous vehicle system using five former subsystems. These are the contained subsystems of the autonomous vehicle system as shown in the BDD: Motor System, Power System, Controller Unit, Sensor System, and Car Body. Each subsystem contains functions, activities, or components needed to accomplish vehicle autonomy \cite{ref:joyit}.
+\begin{itemize}
+    \item \textbf{Motor System}: This subsystem contains two motors (left and right) and a motor controller. The motor system will define the movement of the vehicle for backwards, forwards, and directional. The system also defines controlled operations for control of the individual motors and defines important parameters such as maximum RPM \cite{ref:joyit}.
+    \item \textbf{Power System}: This subsystem provides electrical power to all of the subsystems of the vehicle via a LiPo battery. The system defines the system-wide voltage and includes ports for charging and power distribution \cite{ref:joyit}.
+    \item \textbf{Controller Unit}: This subsystem represents the main logic unit (Arduino Uno). This is the central logic unit that takes inputs from the sensors and executes control algorithms. It defines properties including clock speed, memory, and voltage, and defines ports for I/O and communication. The controller also defines operations, such as hardware initialization and where the main-loop command is executed \cite{ref:joyit}.
+    \item \textbf{Sensor System}: The sensor system contains multiple sensors including two IR sensors to track the line, a color sensor to see the color of obstacles, and an ultrasonic sensor to measure distances. It provides sensor data to the controller through a single data output port, and implements functionality to read sensor values \cite{ref:joyit}.
+    \item \textbf{Car Body}: The car body represents the mechanical nature of the vehicle, including the frame, wheels, servo motor, and mounting positions. It captures attributes associated with the car body including weight, size, and material, and it provides standard ports to connect the motors, sensors, and power system \cite{ref:joyit}.
+\end{itemize}
+The modular design offers a clear separation of functions, and reduces the complexity of integrating the system while improving ease of maintaining and scaling the autonomous vehicle design \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure5.png} % Placeholder for Figure 5
+    \caption{SysML Block Definition Diagram (BDD) of the Autonomous Vehicle}
+    \label{fig:bdd}
+\end{figure}
+
+\subsection{Use Case Diagram}
+The Use Case Diagram shows the way the user interacts with the system of the autonomous car. The user instantiates the Start Vehicle use case, and the core actions like Control Movement and Follow Line can occur with coordination of the motor and IR sensor. The Detect Obstacle use case, enabled by the ultrasonic sensor, will be invoked by both routine, line following or stopping. Once the obstacle is detected the system goes into the Stop Vehicle use case to avoid collision. This diagram covers the key functions of the system and their dependencies on sensors and actuators \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure6.png} % Placeholder for Figure 6
+    \caption{SysML Use Case Diagram of the Autonomous Vehicle}
+    \label{fig:use_case}
+\end{figure}
+
+\subsection{Sequence Diagram}
+The sequence diagram, shown in Figure \ref{fig:sequence_line}, illustrates the primary control flow for the autonomous line-following car, detailing the interactions between the Arduino microcontroller, IR sensors, ultrasonic sensor, and motors. The process initiates with the Arduino turning on and starting both IR scanning (for line detection) and ultrasonic pulsing (for obstacle detection). The system continuously polls for scan results from the IR sensors. An `alt` block then branches the behavior based on the IR sensor readings:
+\begin{itemize}
+    \item \textbf{Both HIGH}: If both IR sensors detect a reflective surface (off the black line), the robot attempts to move forward by running both left and right motors forward.
+    \item \textbf{Left LOW, Right HIGH}: If the left sensor is on the line and the right sensor is off, the robot adjusts by moving the left motor forward and the right motor backward, effectively turning right to re-align with the line.
+    \item \textbf{Left HIGH, Right LOW}: If the right sensor is on the line and the left sensor is off, the robot adjusts by moving the left motor backward and the right motor forward, effectively turning left to re-align with the line.
+\end{itemize}
+Following the line-following logic, the system polls for ultrasonic scan results. Another `alt` block handles obstacle detection:
+\begin{itemize}
+    \item \textbf{No obstacle}: The system continues scanning with the ultrasonic sensor.
+    \item \textbf{Obstacle detected}: The system executes the `avoidObstacle` procedure, which involves a pre-defined sequence of movements to navigate around the detected obstruction.
+\end{itemize}
+This continuous loop of sensing, decision-making, and actuation ensures the vehicle autonomously follows the line and avoids obstacles dynamically \cite{ref:joyit}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figure8.png} % Updated to figure8.png
+    \caption{SysML Sequence Diagram for Autonomous Line Following and Obstacle Avoidance}
+    \label{fig:sequence_line}
+\end{figure}
+
+% --- Structural Component Design ---
+\section{Structural Component Design}
+\label{sec:structural_design}
+The key structural components designed and fabricated to ensure the secure mounting of critical modules within the autonomous vehicle prototype. All designs were created using CAD tools such as Fusion 360 and Tinkercad, then 3D printed. \cite{ref:joyit}.
+
+\subsection{Battery Holder}
+The largest structure in the design layout serves as the battery holder, crafted to accommodate a standard LiPo battery. The dimensions were tailored to snugly fit the 12V 3200mAh unit while allowing cable clearance. Mounting holes and slots were integrated to ensure easy fastening to the vehicle base, while still allowing for efficient replacement and recharge operations. Its position on the main chassis was carefully selected to maintain center-of-gravity balance \cite{ref:joyit}.
+
+\subsection{IR Sensor Holder}
+The IR sensor holder, designed to house the ST1140 IR module. It includes a precise cutout and screw holes to secure the sensor tightly in place. The holder tilts the IR sensor at an optimized downward angle to ensure maximum surface detection accuracy. This ensures stable performance during line following, especially when tracking black lines on white backgrounds \cite{ref:joyit}.
+
+\subsection{Motor Holder}
+The motor holder was designed to tightly fit standard 5V-9V DC motors and features side flanges with 2.5 mm screw holes for stable attachment to the wooden base. The motor shaft alignment was carefully considered in the design to avoid slippage and ensure even torque delivery to the rear wheels, enhancing driving stability. All parts were designed for modularity and ease of assembly, contributing to a more maintainable and adjustable prototype \cite{ref:joyit}.
+
+% --- Components ---
+\section{Components}
+\label{sec:components}
+A variety of hardware components were integrated into the autonomous vehicle prototype. Each component played a specific role in ensuring the successful execution of functions such as motion control, obstacle detection, line following, and colour recognition.
+
+\subsection{Arduino UNO}
+The Arduino Uno serves as the brain of the system, interfacing with all sensors and actuators. It features the ATmega328P microcontroller, an 8-bit RISC core, 14 digital GPIO pins, and 6 analog input pins. It processes incoming data and controls motor drivers accordingly \cite{ref:joyit}.
+
+\subsection{LiPo Battery}
+A 12V 3200 mAh 20C LiPo battery was used as the power source for the L298N motor driver and motors. With a compact design and 210 g weight, it provides sufficient discharge current for all driving components \cite{ref:joyit}.
+
+\subsection{9V DC Motors}
+Two 9V DC motors were installed to drive the rear wheels of the prototype. These motors offer sufficient torque and speed for small-scale autonomous navigation. They were powered through the L298N driver instead of the Arduino to meet current demands \cite{ref:joyit}.
+
+\subsection{L298N Motor Driver}
+The L298N module was used to drive the DC motors and supply power to the Arduino. It accepts power from the LiPo battery and provides direction and speed control via PWM signals from the Arduino. The module also ensures shared ground and voltage regulation \cite{ref:joyit}.
+
+\subsection{HC-SR04 Ultrasonic Sensor}
+The HC-SR04 module was used for real-time distance measurement between 2 cm and 3 m, ideal for obstacle detection. It uses 40 kHz ultrasonic pulses and reflects them back to compute the distance. The sensor provides input to the system to decide when to stop or reroute \cite{ref:joyit}.
+
+\subsection{ST1140 IR Sensors}
+Two ST1140 IR sensors were mounted at the base to follow a black line on a light surface. Each sensor emits infrared light and detects reflections to determine if the surface is reflective (white) or absorbing (black). This forms the basis of the vehicle’s path-following logic \cite{ref:joyit}.
+
+% --- Code Explanation Section ---
+\section{Code Explanation}
+This section provides a detailed explanation of the Arduino code implemented for the autonomous line-following vehicle. The code orchestrates the interaction between various sensors (IR, ultrasonic, servo) and actuators (DC motors, servo motor) to enable line following, obstacle avoidance, and re-orientation capabilities.
+
+\lstinputlisting[language=C++, caption={Arduino Code for Autonomous Line-Following Car}, label={lst:arduino_code}]{finalCode.c} % Updated to finalCode.c
+
+\subsection{Pin Definitions and Global Parameters}
+The initial section of the code defines constants and global variables that link the software to the physical pins of the Arduino Uno and the components they control. This provides a clear interface for hardware-software interaction.
+\begin{itemize}
+    \item \texttt{\#define} constants: These map specific Arduino digital pins to motor control (ENA, IN1, IN2, ENB, IN3, IN4), IR sensors (IR\_LEFT, IR\_RIGHT), and the ultrasonic sensor (TRIG\_PIN, ECHO\_PIN).
+    \item \texttt{const int SERVO\_PIN}: Defines the digital pin for the servo motor.
+    \item \texttt{const int SCAN\_CENTER, SCAN\_RIGHT, SCAN\_LEFT}: These define the servo angles for scanning different directions (0, 90, and 180 degrees respectively).
+\end{itemize}
+The adjustable global variables are crucial for tuning the robot's behavior:
+\begin{table}[H]
+    \centering
+    \caption{Key System Parameters and Their Roles}
+    \label{tab:system_parameters_code}
+    \begin{tabular}{llcl}
+        \toprule
+        \textbf{Parameter} & \textbf{Default Value} & \textbf{Unit} & \textbf{Description / Role} \\
+        \midrule
+        \texttt{motorSpeed} & 65 & (0-255 PWM) & Base speed for forward movement. \\
+        \texttt{backwardsScale} & 1.0 & (0-1.0) & Scaling factor for backward motor speed. \\
+        \texttt{angleSnapSpeed} & 75 & (0-255 PWM) & Motor speed used for 90-degree turns. \\
+        \texttt{obstacleThreshold} & 15 & cm & Distance threshold for obstacle detection. \\
+        \texttt{SCAN\_CENTER} & 0 & degrees & Servo angle for scanning straight ahead. \\
+        \texttt{SCAN\_RIGHT} & 90 & degrees & Servo angle for scanning to the right. \\
+        \texttt{SCAN\_LEFT} & 180 & degrees & Servo angle for scanning to the left. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+These parameters highlight the empirical nature of robotic development, where optimal performance often depends on careful calibration to specific hardware and environmental conditions \cite{ref:joyit}.
+
+\subsection{The \texttt{setup()} Function}
+The \texttt{setup()} function is executed once at the start of the program, initializing all hardware components. It configures the digital pins connected to the motor driver (IN1, IN2, ENA, IN3, IN4, ENB) as outputs, and the IR sensor pins (IR\_LEFT, IR\_RIGHT) and ultrasonic sensor pins (TRIG\_PIN, ECHO\_PIN) as inputs. The servo motor is attached to its designated pin (\texttt{SERVO\_PIN}) and initialized to the center position (\texttt{SCAN\_CENTER}). Finally, \texttt{stopMotors()} is called to ensure the robot is stationary at startup. This function directly corresponds to the "Initialization" state in the SysML State Machine Diagram (Figure \ref{fig:state_machine}) \cite{ref:joyit}.
+
+\subsection{The \texttt{loop()} Function: The Main Control Loop}
+The \texttt{loop()} function contains the continuous execution cycle of the robot's primary behaviors. It dictates the autonomous operation, starting with an obstacle detection check.
+\begin{itemize}
+    \item \textbf{Obstacle Detection}: The \texttt{measureDistance()} function is called. If the measured distance is less than \texttt{obstacleThreshold} (15 cm), the \texttt{avoidObstacle()} function is invoked, and the current loop cycle is exited. This implements the "ObstacleDetection" state (Figure \ref{fig:state_machine}) \cite{ref:joyit}.
+    \item \textbf{Line Following Logic}: If no obstacle is detected, the robot proceeds with line following. The states of the left and right IR sensors are read.
+    \begin{itemize}
+        \item If both sensors are \texttt{LOW} (on the black line), \texttt{moveForward()} is called.
+        \item If both sensors are \texttt{HIGH} (off the line), \texttt{stopMotors()} is called, possibly indicating the end of the line.
+        \item If only one sensor is off the line, the robot adjusts its direction:
+        \begin{itemize}
+            \item If \texttt{rightIR} is \texttt{HIGH} (right sensor off line), the robot turns right by running the right motor forward and the left motor backward.
+            \item If \texttt{leftIR} is \texttt{HIGH} (left sensor off line), the robot turns left by running the left motor forward and the right motor backward.
+        \end{itemize}
+    \end{itemize}
+\end{itemize}
+This logic directly implements the "LineFollowing" state and the decision logic for curve/obstruction handling in the SysML Activity Diagram (Figure \ref{fig:activity_diagram}) \cite{ref:joyit}.
+
+\subsection{Line Following: Straight Movement}
+When both IR sensors detect the black line (outputting `LOW`), the robot is aligned correctly and moves straight forward. This is achieved by the `moveForward()` function, which sets both the left and right motors to run in the forward direction at the predefined `motorSpeed`. This ensures continuous progression along the line.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{straight.png}
+    \caption{Line Following: Straight Movement}
+    \label{fig:straight_movement}
+\end{figure}
+
+\subsection{Line Following: Old Turning Logic}
+Initially, an older turning logic was explored where one wheel would go static, and the other would continue moving. This meant that the static wheel acted as the center of a circle, with the moving wheel drawing out the circumference. While conceptually simple, this method resulted in a very wide turning radius, making it unsuitable for navigating tighter curves or precise turns required for line following. This approach was discarded in favor of a more effective differential drive system.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{turning_old.png}
+    \caption{Line Following: Old Turning Logic}
+    \label{fig:old_turning_logic}
+\end{figure}
+
+\subsection{Line Following: Differential Turning Logic}
+The current implementation utilizes a differential turning logic, which provides much tighter and more precise turns. When one IR sensor detects that the robot is drifting off the line (outputting `HIGH`), the robot adjusts its direction by running both wheels in opposite directions. For instance, if the right IR sensor is `HIGH` (meaning the robot is drifting left off the line), the `runRightMotorForward(motorSpeed)` and `runLeftMotorBackward(int(motorSpeed * backwardsScale))` functions are called. This causes the right wheel to move forward and the left wheel to move backward, effectively pivoting the robot to the right and bringing it back onto the line. Conversely, if the left IR sensor is `HIGH`, the robot turns left using similar differential motor control. This method ensures that the center of the turn is the midpoint between the wheels, allowing for significantly tighter turning radii.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{turning_new.png}
+    \caption{Line Following: Differential Turning Logic (Both Wheels Opposite)}
+    \label{fig:new_turning_logic}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{turning.png}
+    \caption{Line Following: Differential Turning in Action (One Wheel Backwards, One Forwards)}
+    \label{fig:differential_turning_action}
+\end{figure}
+
+\subsection{The \texttt{avoidObstacle()} Function}
+The \texttt{avoidObstacle()} function executes a pre-programmed sequence of movements to navigate around a detected obstacle. It involves a series of fixed-duration movements:
+\begin{enumerate>
+    \item Stop motors, then delay.
+    \item Turn left to move off the line (left motor backward, right motor forward for 400ms).
+    \item Move forward to clear the path (600ms).
+    \item Turn right (400ms).
+    \item Move forward across the obstacle's original position (800ms).
+    \item Turn right again (400ms).
+    \item Move forward back toward the line (600ms).
+    \item Turn left to re-align with the original direction (400ms).
+\end{enumerate>
+Each step relies on fixed \texttt{delay()} values, which can lead to inaccuracies due to varying factors like battery level or surface friction. This routine implements the "Go around the obstacle" action in the SysML Activity Diagram (Figure \ref{fig:activity_diagram}) \cite{ref:joyit}. After this sequence, \texttt{reorientAfterAvoidance()} is called to correct for accumulated errors.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{obstacle_evasion.png}
+    \caption{Obstacle Evasion Sequence}
+    \label{fig:obstacle_evasion_sequence}
+\end{figure}
+
+\subsection{The \texttt{reorientAfterAvoidance()} Function}
+The \texttt{reorientAfterAvoidance()} function re-aligns the robot using real-time sensor feedback after the fixed obstacle avoidance routine.
+\begin{itemize}
+    \item \textbf{Environmental Scan}: The \texttt{scanServo} is commanded to \texttt{SCAN\_RIGHT}, \texttt{SCAN\_CENTER}, and \texttt{SCAN\_LEFT} positions, taking distance readings (\texttt{rightDistance}, \texttt{frontDistance}, \texttt{leftDistance}) at each point using \texttt{measureDistance()}.
+    \item \textbf{Decision Logic}: The robot determines the optimal re-orientation:
+    \begin{itemize}
+        \item If \texttt{frontDistance} is the smallest, the robot performs two consecutive 90-degree right turns (180-degree turn).
+        \item If \texttt{rightDistance} is the smallest, it performs a 90-degree left turn.
+        \item If \texttt{leftDistance} is the smallest, it performs a 90-degree right turn.
+    \end{itemize}
+\end{itemize}
+This function implements the "CalculateAlternatePath" state in the SysML State Machine Diagram (Figure \ref{fig:state_machine}) \cite{ref:joyit}. It provides an adaptive layer to compensate for the inaccuracies of time-based movements.
+
+\subsection{Single IR Sensor Experiment: The 'Crab Dance'}
+An experiment was conducted using only a single IR sensor to control the line-following behavior. The logic was designed such that as long as the single IR sensor detected the line (outputting `HIGH`), the car would move straight. However, when the sensor lost the line (outputting `LOW`), the car was programmed to stop and perform a "crab dance" – a sequence of rapid left and right turns – in an attempt to re-acquire the line.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{single1.png}
+    \caption{Single IR Sensor Experiment: Car Stopped}
+    \label{fig:single_ir_stopped}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{single2.png}
+    \caption{Single IR Sensor Experiment: Car Performing 'Crab Dance'}
+    \label{fig:single_ir_crab_dance}
+\end{figure}
+
+\subsection{Turning Helper Functions (\texttt{turnLeft90()}, \texttt{turnRight90()})}
+These functions achieve approximate 90-degree turns using a differential drive mechanism (one motor forward, one backward) at a speed defined by \texttt{angleSnapSpeed}. A fixed \texttt{delay(400)} milliseconds controls the turn duration. These functions directly implement the "Turn 90 Degrees" requirement (ID=009) \cite{ref:joyit}.
+
+\subsection{Motor Control Functions}
+The code includes low-level functions for precise motor control, interfacing with the L298N motor driver:
+\begin{itemize>
+    \item \texttt{moveForward()}: Sets both motors to run forward at \texttt{motorSpeed}.
+    \item \texttt{stopMotors()}: Halts both motors.
+    \item \texttt{runRightMotorForward(int speed)}, \texttt{runRightMotorBackward(int speed)}, \texttt{stopRightMotor()}: Control the direction and speed of the right motor using digital and analog writes to IN1, IN2, and ENA pins.
+    \item \texttt{runLeftMotorForward(int speed)}, \texttt{runLeftMotorBackward(int speed)}, \texttt{stopLeftMotor()}: Control the direction and speed of the left motor using digital and analog writes to IN3, IN4, and ENB pins.
+</itemize>
+These functions provide the fundamental actuation capabilities, mapping to the "Motor System" in the SysML Internal Block Diagram (Figure \ref{fig:internal_block_diagram}) \cite{ref:joyit}.
+
+\subsection{Ultrasonic Measurement (\texttt{measureDistance()})}
+This function obtains distance readings from the HC-SR04 ultrasonic sensor. It sends a 10-microsecond \texttt{HIGH} pulse to \texttt{TRIG\_PIN}, measures the duration of the \texttt{HIGH} pulse on \texttt{ECHO\_PIN} (time for sound to travel and return), and calculates distance using the formula \texttt{duration * 0.034 / 2} (0.034 cm/microsecond is the speed of sound, divided by 2 for round trip). This function is a critical part of the "Sensor System" in the SysML diagrams \cite{ref:joyit}.
+
+% --- Experimental Results ---
+\section{Experimental Results}
+The project successfully culminated in the development of a line-following autonomous vehicle capable of making independent decisions. The experimental results, as stated in the project's conclusion, demonstrate that the prototype successfully fulfills all primary functional requirements \cite{ref:joyit}. While specific quantitative data, such as success rates on complex tracks, precision of turns, or detailed obstacle avoidance success rates, are not explicitly provided within the available documentation, the assertion of successful fulfillment indicates that the system performed as intended during testing.
+
+For future industrial applications or more rigorous scientific studies, the inclusion of detailed quantitative performance data would be essential for comparative analysis and precise identification of areas for improvement.
+
+\subsection{Analysis of Single IR Sensor Experiment ('Crab Dance')}
+The single IR sensor experiment, employing the "crab dance" logic, proved to be unreliable in practice. While the concept aimed to re-acquire the line by repeatedly turning left and right, the car frequently failed to reliably find the line again. This unreliability can be attributed to several factors:
+\begin{itemize>
+    \item \textbf{Lack of Directional Feedback}: With only one sensor, the car lacked precise information about which direction the line was relative to its current position. The "crab dance" was a blind search, relying on chance to cross the line.
+    \item \textbf{Fixed Turn Durations}: The turns in the "crab dance" were based on fixed `delay()` values. Factors like surface friction, battery voltage fluctuations, and slight variations in motor performance could cause these fixed turns to be inconsistent, leading the car to overshoot or undershoot the line repeatedly without finding it.
+    \item \textbf{Environmental Sensitivity}: The effectiveness of a single IR sensor is highly dependent on ambient light and the contrast of the line. Any slight variation could cause the sensor to misread, further exacerbating the unreliability of the "crab dance" re-acquisition.
+    \item \textbf{No Proportional Control}: The system lacked any form of proportional or PID control, which would allow for more nuanced adjustments based on the degree of deviation. Instead, it performed binary "on/off" turns, which are less effective for precise line re-acquisition.
+</itemize>
+Ultimately, this experiment highlighted the necessity of multiple sensors or more sophisticated algorithms for robust line following, especially after losing the line.
+
+\subsection{Potential Issues with Obstacle Evasion Sequence}
+The current `avoidObstacle()` sequence, while functional, presents a potential issue: it displaces the car a fixed distance forward after the initial turn sequence. This means the car might stop directly in front of the obstacle's original position, which might not necessarily be on the line. If the obstacle was off-center on the track, or if the initial avoidance turns were imprecise, the car could end up off the line after clearing the obstacle. This limitation necessitated the implementation of the `reorientAfterAvoidance()` logic. The reorientation step, which uses the ultrasonic sensor to scan the environment and determine the best direction to turn, was crucial to correct for any accumulated positional errors and guide the car back to the track after the fixed avoidance maneuver. This adaptive reorientation ensures the car can reliably find the line again, even if the fixed avoidance path leads it slightly astray.
+
+% --- Presentation Results ---
+\section{Presentation Results}
+During the final presentation at the university, where our autonomous line-following car was tested on a specially prepared track, we encountered unforeseen challenges. Unfortunately, one of our IR sensors experienced a failure, rendering it unable to provide reliable readings. As a result, the car's line-following behavior became erratic, deviating significantly from the intended path.
+
+In an attempt to mitigate this issue during the presentation, we tried to utilize the "crab dance" code, which was developed during earlier experiments for single IR sensor operation. However, as noted in Section 6.2, the "crab dance" logic proved to be unreliable in re-acquiring the line consistently. This inherent unreliability, combined with the sensor failure, led to poor performance during the live demonstration.
+
+It is important to note that in prior rigorous testing, the core line-following and obstacle avoidance code had been thoroughly tested and found to be logically sound and fully functional. The car had performed as expected in controlled environments. The sensor failure during the presentation was an unexpected hardware issue that could not have been foreseen or managed by our team during the limited time of the presentation. This incident underscores the challenges of real-world robotics, where hardware reliability is as critical as software logic.
+
+% --- Conclusion ---
+\section{Conclusion}
+This report has detailed the comprehensive development of an autonomous line-following vehicle, designed with the advanced capability of making independent decisions based on the color of detected obstacles. The project successfully integrated mechanical design, electronic components, and sophisticated software logic to create a functional prototype. The systematic approach, guided by SysML, ensured a structured development process, from defining granular requirements to modeling complex system behaviors. The experimental outcomes affirm that the prototype successfully meets all its primary functional requirements, demonstrating its ability to navigate lines, detect obstacles, and react intelligently \cite{ref:joyit}.
+
+Looking ahead, several key enhancements are envisioned to further advance the vehicle's capabilities and robustness. To significantly improve stability and maneuverability, future iterations plan to integrate two additional DC motors, replacing the current passive ball bearing front wheel with a more controlled drive system \cite{ref:joyit}. This upgrade would allow for more precise steering and better traction, especially on varied surfaces. Furthermore, the sensing capabilities will be enhanced by mounting an additional HC-SR04 ultrasonic sensor at the rear of the vehicle. Both the front and rear ultrasonic sensors will be attached to a servo motor, enabling dynamic 360-degree environmental scanning. This expanded perception will facilitate more consistent and informed decision-making, moving beyond simple front-facing obstacle detection \cite{ref:joyit}. To support these substantial hardware upgrades, a critical step will involve adopting a microcontroller with an increased number of digital and analog I/O pins, as the current Arduino Uno would likely reach its I/O and processing limits with the added complexity \cite{ref:joyit}. These proposed enhancements demonstrate a clear understanding of the prototype's current limitations and a strategic vision for evolving towards a more capable, situationally aware, and truly autonomous robotic system.
+
+% --- Acknowledgment ---
+\section{Acknowledgment}
+The successful completion of this project was made possible through the invaluable support and resources generously provided by Hamm-Lippstadt University of Applied Sciences \cite{ref:joyit}. The project team extends its sincere gratitude to Prof. Dr. S. Henkler and Prof. G. Wahrmann for their guidance and constructive feedback throughout every phase of the project \cite{ref:joyit}.
+
+% --- Appendix ---
+\section{Appendix}
+All team members contributed equally to the design, development, and successful completion of this project \cite{ref:joyit}.
+
+% --- References ---
+\section*{References}
+\addcontentsline{toc}{section}{References} % Add References to Table of Contents
+
+\begin{thebibliography}{99} % The number 99 provides space for up to 99 references
+
+\bibitem{ref:joyit} Joy-IT. "Color sensor module TCS3200." Joy-IT.net. Available: \url{https://joy-it.net/de/products/SEN-Color}. [Accessed: 21-Jun-2025].
+\bibitem{ref:santos} Santos, R. "Complete Guide for Ultrasonic Sensor HC-SR04 with Arduino." Random Nerd Tutorials. Available: \url{https://randomnerdtutorials.com/complete-guide-for-ultrasonic-sensor-hc-sr04/}. [Accessed: 21-Jun-2025].
+\bibitem{ref:lextronic} Lextronic. "Capteur de ligne Arduino OpenST1140." Lextronic.fr. Available: \url{https://www.lextronic.fr/capteur-ligne-arduino-openst1140-51718.html}. [Accessed: 21-Jun-2025].
+\bibitem{ref:components101} Components101. "L293D Motor Driver Module." Components101.com. Available: \url{https://components101.com/modules/l293n-motor-driver-module}. [Accessed: 21-Jun-2025].
+\bibitem{ref:arduino_doc} Arduino. "Arduino UNO Rev3 with long pins (Retired)." Arduino Documentation. Available: \url{https://docs.arduino.cc/retired/boards/arduino-uno-rev3-with-long-pins/}. [Accessed: 21-Jun-2025].
+\bibitem{ref:tinkercad} Autodesk. "Tinkercad Circuits: Online Simulator for Arduino and Electronics." Tinkercad.com. Available: \url{https://www.tinkercad.com}. [Accessed: 21-Jun-2025].
+
+\end{thebibliography}
+
+\end{document}
