@@ -1,314 +1,231 @@
-#include <math.h>
+#include <Servo.h>
 
-#define S0 A2
-#define S1 A1
-#define S2 0
-#define S3 1
-#define colorSensorOutput A0
+// === Pin Definitions ===
+#define ENA 9   // Right motor speed
+#define IN1 8   // Right motor direction
+#define IN2 7   // Right motor direction
 
-// Color calibration thresholds
-int redTop = 24390;
-int redBottom = 27776;
-int blueTop = 17543;
-int blueBottom = 6756;
+#define ENB 4   // Left motor speed
+#define IN3 6   // Left motor direction
+#define IN4 5   // Left motor direction
 
-int redVal = 0;
-int blueVal = 0;
+#define IR_LEFT 3
+#define IR_RIGHT 2
 
-int redFreq = 0;
-int blueFreq = 0;
-int redTime = 0;
-int blueTime = 0;
+#define TRIG_PIN 12
+#define ECHO_PIN 13
 
-bool detectRed = false;
-bool detectBlue = false;
+const int SERVO_PIN = 10;
+const int SCAN_CENTER = 0;     // Straight ahead
+const int SCAN_LEFT = 90;      // Rotate servo left
+const int SCAN_RIGHT = 180;    // Rotate servo right
 
-bool trackingWhite = true;
+// === Adjustable Speeds & Thresholds ===
+int motorSpeed = 65;
+float backwardsScale = 1;
+int angleSnapSpeed = 75;
+int obstacleThreshold = 15;  // cm
 
-// Motor pin assignments
-const int leftMotorPWM = 11;
-const int leftMotorIn1 = 10;
-const int leftMotorIn2 = 9;
-
-const int rightMotorIn1 = 8;
-const int rightMotorIn2 = 7;
-const int rightMotorPWM = 6;
-
-// Infrared sensors
-const int irLeft = 2;
-const int irRight = 3;
-
-// Ultrasonic pins
-const int sonarTrigger = 4;
-const int sonarEcho = 5;
-float obstacleDistance = 5000;
-
-int normalSpeed = 100;
-int curveSpeed = 70;
-
-int leftIRState = 1;
-int rightIRState = 1;
-
-void readColorSensor() {
-  Serial.println("=== COLOR CHECK ===");
-
-  digitalWrite(S2, LOW);
-  digitalWrite(S3, LOW);
-  redTime = pulseIn(colorSensorOutput, LOW);
-  redFreq = 1000000 / redTime;
-  redVal = map(redFreq, redTop, redBottom, 255, 0);
-  redVal = constrain(redVal, 0, 255);
-
-  Serial.print("Red Freq: ");
-  Serial.println(redFreq);
-  Serial.print("Red Value: ");
-  Serial.println(redVal);
-  delay(100);
-
-  digitalWrite(S3, HIGH);
-  blueTime = pulseIn(colorSensorOutput, LOW);
-  blueFreq = 1000000 / blueTime;
-  blueVal = map(blueFreq, blueTop, blueBottom, 255, 0);
-  blueVal = constrain(blueVal, 0, 255);
-
-  Serial.print("Blue Freq: ");
-  Serial.println(blueFreq);
-  Serial.print("Blue Value: ");
-  Serial.println(blueVal);
-  delay(100);
-
-  if (redVal == 255 && blueVal == 0) {
-    Serial.println("No Color Detected");
-  } else if (redVal < 255 && blueVal == 0) {
-    Serial.println("Red Color Found");
-    detectRed = true;
-    detectBlue = false;
-  } else if (blueVal > 0) {
-    Serial.println("Blue Color Found");
-    detectRed = false;
-    detectBlue = true;
-  }
-
-  delay(1000);
-}
-
-void triggerSonar() {
-  digitalWrite(sonarTrigger, LOW);
-  delayMicroseconds(2);
-  digitalWrite(sonarTrigger, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(sonarTrigger, LOW);
-}
-
-float getDistance() {
-  triggerSonar();
-  long duration = pulseIn(sonarEcho, HIGH, 30000);
-  return duration * 0.34 / 2;
-}
-
-void runLeftMotorForward(int pwm) {
-  analogWrite(leftMotorPWM, pwm);
-  digitalWrite(leftMotorIn1, LOW);
-  digitalWrite(leftMotorIn2, HIGH);
-}
-
-void runRightMotorForward(int pwm) {
-  analogWrite(rightMotorPWM, pwm);
-  digitalWrite(rightMotorIn1, HIGH);
-  digitalWrite(rightMotorIn2, LOW);
-}
-
-void moveAhead(int speed) {
-  runLeftMotorForward(speed);
-  runRightMotorForward(speed);
-}
-
-void reverseLeftMotor(int pwm) {
-  analogWrite(leftMotorPWM, pwm);
-  digitalWrite(leftMotorIn1, HIGH);
-  digitalWrite(leftMotorIn2, LOW);
-}
-
-void reverseRightMotor(int pwm) {
-  analogWrite(rightMotorPWM, pwm);
-  digitalWrite(rightMotorIn1, LOW);
-  digitalWrite(rightMotorIn2, HIGH);
-}
-
-void moveBack(int speed) {
-  reverseLeftMotor(speed);
-  reverseRightMotor(speed);
-}
-
-void stopAllMotors() {
-  analogWrite(leftMotorPWM, 0);
-  analogWrite(rightMotorPWM, 0);
-}
-
-void rotate180() {
-  reverseLeftMotor(normalSpeed);
-  runRightMotorForward(normalSpeed);
-  delay(2200);
-  stopAllMotors();
-}
-
-void goAroundObstacle() {
-  rotateLeft45();
-  obstacleDistance = getDistance();
-
-  if (obstacleDistance >= 10 && obstacleDistance < 200) {
-    moveBack(normalSpeed);
-    delay(600);
-    turnRight90();
-    goForwardFar();
-
-    reverseLeftMotor(180);
-    runRightMotorForward(180);
-    delay(300);
-    stopAllMotors();
-
-    goForwardClose();
-  } else {
-    goForwardFar();
-    turnRight90();
-    goForwardClose();
-  }
-}
-
-void checkObstacle() {
-  obstacleDistance = getDistance();
-  Serial.println(obstacleDistance);
-
-  if (obstacleDistance >= 10 && obstacleDistance <= 55) {
-    stopAllMotors();
-    delay(2000);
-
-    readColorSensor();
-    readColorSensor();
-    readColorSensor();
-
-    if (detectRed) {
-      moveBack(normalSpeed);
-      delay(500);
-      stopAllMotors();
-      goAroundObstacle();
-    } else if (detectBlue) {
-      moveBack(normalSpeed);
-      delay(500);
-      stopAllMotors();
-      parkVehicle();
-    } else {
-      moveBack(normalSpeed);
-      delay(500);
-      stopAllMotors();
-      rotate180();
-    }
-
-    detectRed = false;
-    detectBlue = false;
-  }
-}
-
-void parkVehicle() {
-  runLeftMotorForward(180);
-  reverseRightMotor(180);
-  delay(500);
-  stopAllMotors();
-
-  reverseLeftMotor(200);
-  reverseRightMotor(220);
-  delay(500);
-  stopAllMotors();
-}
-
-void rotateLeft45() {
-  reverseLeftMotor(180);
-  runRightMotorForward(180);
-  delay(200);
-  stopAllMotors();
-}
-
-void turnRight90() {
-  runLeftMotorForward(180);
-  reverseRightMotor(180);
-  delay(400);
-  stopAllMotors();
-}
-
-void goForwardFar() {
-  moveAhead(normalSpeed);
-  delay(2500);
-  stopAllMotors();
-}
-
-void goForwardClose() {
-  do {
-    moveAhead(normalSpeed);
-    leftIRState = digitalRead(irLeft);
-    rightIRState = digitalRead(irRight);
-  } while (leftIRState == HIGH && rightIRState == HIGH);
-  stopAllMotors();
-  delay(500);
-}
-
-void monitorIR() {
-  leftIRState = digitalRead(irLeft);
-  rightIRState = digitalRead(irRight);
-}
+Servo scanServo;
 
 void setup() {
-  pinMode(leftMotorIn1, OUTPUT);
-  pinMode(leftMotorIn2, OUTPUT);
-  pinMode(rightMotorIn1, OUTPUT);
-  pinMode(rightMotorIn2, OUTPUT);
-  pinMode(leftMotorPWM, OUTPUT);
-  pinMode(rightMotorPWM, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENA, OUTPUT);
 
-  pinMode(irLeft, INPUT);
-  pinMode(irRight, INPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(ENB, OUTPUT);
 
-  pinMode(sonarTrigger, OUTPUT);
-  pinMode(sonarEcho, INPUT);
+  pinMode(IR_LEFT, INPUT);
+  pinMode(IR_RIGHT, INPUT);
 
-  pinMode(S0, OUTPUT);
-  pinMode(S1, OUTPUT);
-  pinMode(S2, OUTPUT);
-  pinMode(S3, OUTPUT);
-  pinMode(colorSensorOutput, INPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 
-  digitalWrite(S0, HIGH);
-  digitalWrite(S1, LOW);
+  scanServo.attach(SERVO_PIN);
+  scanServo.write(SCAN_CENTER);
 
-  Serial.begin(9600);
+  stopMotors();
 }
 
 void loop() {
-  monitorIR();
-  checkObstacle();
+  if (measureDistance() < obstacleThreshold) {
+    avoidObstacle();
+    return;
+  }
 
-  if (trackingWhite) {
-    if (leftIRState == HIGH && rightIRState == HIGH) {
-      moveAhead(normalSpeed);
-    } else if (leftIRState == LOW && rightIRState == HIGH) {
-      reverseLeftMotor(150);
-      runRightMotorForward(normalSpeed + curveSpeed);
-    } else if (leftIRState == HIGH && rightIRState == LOW) {
-      runLeftMotorForward(normalSpeed + curveSpeed);
-      reverseRightMotor(150);
-    } else {
-      moveBack(normalSpeed);
-    }
+  int leftIR = digitalRead(IR_LEFT);
+  int rightIR = digitalRead(IR_RIGHT);
+
+  if (leftIR == LOW && rightIR == LOW) {
+    moveForward();
+  } else if (leftIR == HIGH && rightIR == HIGH) {
+    stopMotors();
   } else {
-    if (leftIRState == LOW && rightIRState == LOW) {
-      moveAhead(normalSpeed);
-    } else if (leftIRState == HIGH && rightIRState == LOW) {
-      reverseLeftMotor(150);
-      runRightMotorForward(normalSpeed + curveSpeed);
-    } else if (leftIRState == LOW && rightIRState == HIGH) {
-      runLeftMotorForward(normalSpeed + curveSpeed);
-      reverseRightMotor(150);
-    } else {
-      moveBack(normalSpeed);
+    if (leftIR == LOW && rightIR == HIGH) {
+      runRightMotorForward(motorSpeed);
+      runLeftMotorBackward(int(motorSpeed * backwardsScale));
+    } else if (leftIR == HIGH && rightIR == LOW) {
+      runLeftMotorForward(motorSpeed);
+      runRightMotorBackward(int(motorSpeed * backwardsScale));
     }
   }
+}
+
+// === Obstacle Avoidance Routine ===
+void avoidObstacle() {
+  stopMotors();
+  delay(500);
+
+  // Step 1: turn left
+  runLeftMotorBackward(angleSnapSpeed);
+  runRightMotorForward(angleSnapSpeed);
+  delay(400);
+
+  // Step 2: move forward out of the way
+  moveForward();
+  delay(600);
+
+  // Step 3: turn right
+  runLeftMotorForward(angleSnapSpeed);
+  runRightMotorBackward(angleSnapSpeed);
+  delay(400);
+
+  // Step 4: move forward across the obstacle
+  moveForward();
+  delay(800);
+
+  // Step 5: turn right again
+  runLeftMotorForward(angleSnapSpeed);
+  runRightMotorBackward(angleSnapSpeed);
+  delay(400);
+
+  // Step 6: move forward to return to path
+  moveForward();
+  delay(600);
+
+  // Step 7: final left turn to face original direction
+  runLeftMotorBackward(angleSnapSpeed);
+  runRightMotorForward(angleSnapSpeed);
+  delay(400);
+
+  stopMotors();
+  delay(500);
+
+  reorientAfterAvoidance();
+}
+
+// === Post-Avoidance Reorientation ===
+void reorientAfterAvoidance() {
+  stopMotors();
+  delay(500);
+
+  int frontDistance, leftDistance, rightDistance;
+
+  // Look right
+  scanServo.write(SCAN_RIGHT);
+  delay(500);
+  rightDistance = measureDistance();
+
+  // Look center
+  scanServo.write(SCAN_CENTER);
+  delay(500);
+  frontDistance = measureDistance();
+
+  // Look left
+  scanServo.write(SCAN_LEFT);
+  delay(500);
+  leftDistance = measureDistance();
+
+  // Return to center
+  scanServo.write(SCAN_CENTER);
+  delay(300);
+
+  // Decide direction based on where obstacle is
+  if (frontDistance < rightDistance && frontDistance < leftDistance) {
+    turnRight90(); delay(300); turnRight90();
+  } else if (rightDistance < frontDistance && rightDistance < leftDistance) {
+    turnLeft90();
+  } else if (leftDistance < frontDistance && leftDistance < rightDistance) {
+    turnRight90();
+  }
+
+  stopMotors();
+  delay(500);
+}
+
+// === Turning Helpers ===
+void turnLeft90() {
+  runLeftMotorBackward(angleSnapSpeed);
+  runRightMotorForward(angleSnapSpeed);
+  delay(400);
+  stopMotors();
+  delay(300);
+}
+
+void turnRight90() {
+  runLeftMotorForward(angleSnapSpeed);
+  runRightMotorBackward(angleSnapSpeed);
+  delay(400);
+  stopMotors();
+  delay(300);
+}
+
+// === Motor Control ===
+void moveForward() {
+  runRightMotorForward(motorSpeed);
+  runLeftMotorForward(motorSpeed);
+}
+
+void stopMotors() {
+  stopLeftMotor();
+  stopRightMotor();
+}
+
+void runRightMotorForward(int speed) {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, speed);
+}
+
+void runRightMotorBackward(int speed) {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA, speed);
+}
+
+void stopRightMotor() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, 0);
+}
+
+void runLeftMotorForward(int speed) {
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, speed);
+}
+
+void runLeftMotorBackward(int speed) {
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENB, speed);
+}
+
+void stopLeftMotor() {
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, 0);
+}
+
+// === Ultrasonic Distance ===
+long measureDistance() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  return duration * 0.034 / 2;  // Distance in cm
 }
